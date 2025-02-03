@@ -1,0 +1,4 @@
+flask
+requests
+plotly
+sqlite3
