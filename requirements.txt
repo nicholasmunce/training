@@ -1,4 +1,3 @@
 flask
-requests
 plotly
-sqlite3
+gunicorn
