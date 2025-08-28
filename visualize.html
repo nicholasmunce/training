@@ -1,14 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Activity Zones Visualization</title>
+    <title>Visualization</title>
 </head>
 <body>
-    <h1>Heart Rate Zones for Activity ID {{ activity_id }}</h1>
-    <img src="data:image/png;base64,{{ plot_image }}" alt="Heart Rate Zones">
-    <br><br>
-    <a href="/">Go back</a>
+    <h1>Activity {{ activity_id }} - Heart Rate Zones</h1>
+    <img src="data:image/png;base64,{{ plot_image }}" />
+    <br><a href="/">Back</a>
 </body>
 </html>

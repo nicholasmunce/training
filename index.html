@@ -1,16 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strava Activity Zones</title>
+    <title>Strava Activity Visualization</title>
 </head>
 <body>
-    <h1>Enter your Strava Activity ID</h1>
+    <h1>Enter an Activity ID</h1>
     <form action="/visualize" method="POST">
-        <label for="activity_id">Activity ID: </label>
-        <input type="text" name="activity_id" required>
-        <button type="submit">Visualize Zones</button>
+        <input type="text" name="activity_id" placeholder="Activity ID" required>
+        <button type="submit">Visualize</button>
     </form>
 </body>
 </html>
