@@ -1,3 +1,5 @@
 flask
 plotly
+requests
+python-dotenv
 gunicorn

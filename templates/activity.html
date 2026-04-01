@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% block title %}{{ detail.name }} — Levitate{% endblock %}
+
+{% block content %}
+
+{# ── Header ── #}
+<div class="mb-4">
+  <a href="/" class="text-secondary small">← Activities</a>
+  <h4 class="mt-2 mb-0 fw-bold">{{ detail.name }}</h4>
+  <p class="text-secondary mb-0" style="font-size: .875rem;">
+    {{ (detail.sport_type or detail.type) | sport_icon }}
+    {{ detail.sport_type or detail.type }}
+    &nbsp;·&nbsp;
+    {{ detail.start_date_local | fdate }}
+    {% if detail.start_date_local %}at {{ detail.start_date_local | ftime }}{% endif %}
+    {% if detail.location_city %}
+      &nbsp;·&nbsp; {{ detail.location_city }}{% if detail.location_country %}, {{ detail.location_country }}{% endif %}
+    {% endif %}
+  </p>
+</div>
+
+{# ── Stats Cards ── #}
+<div class="row g-2 mb-4">
+
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Distance</div>
+      <div class="value">{{ detail.distance | km }} <small class="text-secondary fw-normal" style="font-size:.8rem">km</small></div>
+    </div>
+  </div>
+
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Moving Time</div>
+      <div class="value">{{ detail.moving_time | duration }}</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Elevation Gain</div>
+      <div class="value">
+        {% if detail.total_elevation_gain %}
+          {{ detail.total_elevation_gain | int }} <small class="text-secondary fw-normal" style="font-size:.8rem">m</small>
+        {% else %}—{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">{{ "Pace" if is_run else "Avg Speed" }}</div>
+      <div class="value" style="font-size:1.1rem;">{{ pace_str }}</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Avg / Max HR</div>
+      <div class="value" style="font-size:1.1rem;">
+        {% if detail.average_heartrate %}
+          {{ detail.average_heartrate | int }}
+          <small class="text-secondary fw-normal" style="font-size:.8rem">/ {{ detail.max_heartrate | int }} bpm</small>
+        {% else %}—{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if detail.average_watts %}
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Avg Power</div>
+      <div class="value">{{ detail.average_watts | int }} <small class="text-secondary fw-normal" style="font-size:.8rem">W</small></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if detail.average_cadence %}
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Avg Cadence</div>
+      <div class="value">{{ detail.average_cadence | int }} <small class="text-secondary fw-normal" style="font-size:.8rem">{{ "spm" if is_run else "rpm" }}</small></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if detail.calories %}
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Calories</div>
+      <div class="value">{{ detail.calories | int }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if detail.suffer_score %}
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Suffer Score</div>
+      <div class="value">{{ detail.suffer_score }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if detail.weighted_average_watts %}
+  <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+    <div class="stat-card">
+      <div class="label">Normalized Power</div>
+      <div class="value">{{ detail.weighted_average_watts | int }} <small class="text-secondary fw-normal" style="font-size:.8rem">W</small></div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Charts ── #}
+{% set has_charts = stream_charts or zones_chart or laps_chart %}
+{% if has_charts %}
+<h6 class="text-secondary text-uppercase mb-3" style="letter-spacing:.08em; font-size:.72rem;">Charts</h6>
+<div class="row g-3 mb-4">
+
+  {% if stream_charts.hr %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ stream_charts.hr | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if stream_charts.pace %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ stream_charts.pace | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if stream_charts.elevation %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ stream_charts.elevation | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if zones_chart %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ zones_chart | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if stream_charts.cadence %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ stream_charts.cadence | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if stream_charts.power %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ stream_charts.power | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if stream_charts.grade %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ stream_charts.grade | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if stream_charts.hr_scatter %}
+  <div class="col-12 col-xl-6">
+    <div class="chart-card">{{ stream_charts.hr_scatter | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if laps_chart %}
+  <div class="col-12">
+    <div class="chart-card">{{ laps_chart | safe }}</div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+{# ── Laps Table ── #}
+{% if laps %}
+<h6 class="text-secondary text-uppercase mb-3" style="letter-spacing:.08em; font-size:.72rem;">Laps</h6>
+<div class="table-responsive mb-4">
+  <table class="table table-sm align-middle" style="font-size: .875rem;">
+    <thead>
+      <tr class="text-secondary" style="font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;">
+        <th class="fw-normal">#</th>
+        <th class="fw-normal text-end">Distance</th>
+        <th class="fw-normal text-end">Time</th>
+        <th class="fw-normal text-end">{{ "Pace" if is_run else "Speed" }}</th>
+        <th class="fw-normal text-end">Avg HR</th>
+        <th class="fw-normal text-end">Max HR</th>
+        <th class="fw-normal text-end">Cadence</th>
+        <th class="fw-normal text-end">Elevation</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for lap in laps %}
+    <tr style="border-bottom: 1px solid #21262d;">
+      <td class="text-secondary">{{ lap.lap_index }}</td>
+      <td class="text-end text-white">{{ lap.distance | km }} km</td>
+      <td class="text-end text-secondary">{{ lap.elapsed_time | duration }}</td>
+      <td class="text-end text-secondary">
+        {% if is_run %}
+          {{ lap.average_speed | pace }} /km
+        {% elif lap.average_speed %}
+          {{ "%.1f" | format(lap.average_speed * 3.6) }} km/h
+        {% else %}—{% endif %}
+      </td>
+      <td class="text-end text-secondary">
+        {% if lap.average_heartrate %}{{ lap.average_heartrate | int }}{% else %}—{% endif %}
+      </td>
+      <td class="text-end text-secondary">
+        {% if lap.max_heartrate %}{{ lap.max_heartrate | int }}{% else %}—{% endif %}
+      </td>
+      <td class="text-end text-secondary">
+        {% if lap.average_cadence %}{{ lap.average_cadence | int }}{% else %}—{% endif %}
+      </td>
+      <td class="text-end text-secondary">
+        {% if lap.total_elevation_gain %}{{ lap.total_elevation_gain | int }}m{% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── Description ── #}
+{% if detail.description %}
+<h6 class="text-secondary text-uppercase mb-2" style="letter-spacing:.08em; font-size:.72rem;">Notes</h6>
+<p class="text-secondary" style="font-size:.875rem; white-space: pre-wrap;">{{ detail.description }}</p>
+{% endif %}
+
+{% endblock %}
