@@ -81,8 +81,73 @@
   </div>
   {% endif %}
 
+  {% if training_load_chart %}
+  <div class="col-12">
+    <div class="chart-card">{{ training_load_chart | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if yoy_chart %}
+  <div class="col-12">
+    <div class="chart-card">{{ yoy_chart | safe }}</div>
+  </div>
+  {% endif %}
+
 </div>
 
+{% endif %}
+
+{# ── Consistency & Streaks ── #}
+{% if consistency %}
+<h5 class="fw-semibold mt-5 mb-3">Consistency</h5>
+
+<div class="row g-2 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Current Streak</div>
+      <div class="value">
+        {{ consistency.current_streak }}
+        <small class="text-secondary fw-normal" style="font-size:.8rem">days</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Longest Streak</div>
+      <div class="value">
+        {{ consistency.longest_streak }}
+        <small class="text-secondary fw-normal" style="font-size:.8rem">days</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Avg Days / Week</div>
+      <div class="value">{{ consistency.avg_days_per_week }}
+        <small class="text-secondary fw-normal" style="font-size:.8rem">last 12 wks</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Active Days</div>
+      <div class="value">{{ consistency.total_active_days }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% if consistency_charts.dow %}
+  <div class="col-12 col-lg-6">
+    <div class="chart-card">{{ consistency_charts.dow | safe }}</div>
+  </div>
+  {% endif %}
+  {% if consistency_charts.tod %}
+  <div class="col-12 col-lg-6">
+    <div class="chart-card">{{ consistency_charts.tod | safe }}</div>
+  </div>
+  {% endif %}
+</div>
 {% endif %}
 
 {% endblock %}

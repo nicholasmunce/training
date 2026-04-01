@@ -7,7 +7,7 @@ import time
 import plotly.graph_objects as go
 import plotly.io as pio
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
 
 load_dotenv('first.env')
@@ -618,6 +618,279 @@ class StravaAPI:
 
         return charts
 
+    # ── Calendar Heatmap ─────────────────────────────────────────────────────
+
+    def chart_calendar(self, activities, year=None):
+        """GitHub-style activity heatmap for a given year."""
+        if not activities:
+            return None, []
+
+        if year is None:
+            year = datetime.now().year
+
+        daily = defaultdict(float)
+        for a in activities:
+            try:
+                dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
+                if dt.year == year:
+                    daily[dt.date()] += a.get("distance", 0) / 1000
+            except Exception:
+                pass
+
+        jan1 = date(year, 1, 1)
+        dec31 = date(year, 12, 31)
+        week_start = jan1 - timedelta(days=jan1.weekday())  # Monday of first week
+
+        weeks = []
+        cur = week_start
+        while cur <= dec31:
+            weeks.append([cur + timedelta(days=d) for d in range(7)])
+            cur += timedelta(weeks=1)
+
+        num_weeks = len(weeks)
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        z = [[None] * num_weeks for _ in range(7)]
+        text = [['']*num_weeks for _ in range(7)]
+
+        for wi, week in enumerate(weeks):
+            for di, day in enumerate(week):
+                if day.year == year:
+                    val = daily.get(day, 0)
+                    z[di][wi] = val
+                    label = day.strftime('%b %-d')
+                    text[di][wi] = f"{label}: {val:.1f} km" if val > 0 else label
+
+        x_labels = ['' for _ in range(num_weeks)]
+        for wi, week in enumerate(weeks):
+            for d in week:
+                if d.day == 1 and d.year == year:
+                    x_labels[wi] = d.strftime('%b')
+
+        colorscale = [
+            [0.0,   '#161b22'],
+            [0.001, '#0e4429'],
+            [0.3,   '#006d32'],
+            [0.6,   '#26a641'],
+            [1.0,   '#39d353'],
+        ]
+
+        fig = go.Figure(go.Heatmap(
+            z=z,
+            x=list(range(num_weeks)),
+            y=day_names,
+            text=text,
+            hovertemplate='%{text}<extra></extra>',
+            colorscale=colorscale,
+            showscale=False,
+            xgap=3, ygap=3,
+            zmin=0,
+        ))
+        fig.update_layout(
+            title=f"{year} Activity Calendar",
+            xaxis=dict(tickvals=list(range(num_weeks)), ticktext=x_labels,
+                       showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=False, autorange='reversed'),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#adb5bd'),
+            margin=dict(l=45, r=20, t=45, b=20),
+            height=200,
+        )
+
+        available_years = sorted({
+            datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d").year
+            for a in activities if a.get("start_date_local")
+        }, reverse=True)
+
+        html = pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                           div_id="chart-calendar", config={"displayModeBar": False})
+        return html, available_years
+
+    # ── Training Load ────────────────────────────────────────────────────────
+
+    def chart_training_load(self, activities):
+        """CTL (fitness), ATL (fatigue), Form chart over last 365 days."""
+        if not activities:
+            return None
+
+        daily_load = defaultdict(float)
+        for a in activities:
+            try:
+                d = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d").date()
+                daily_load[d] += a.get("moving_time", 0) / 60  # minutes
+            except Exception:
+                pass
+
+        if not daily_load:
+            return None
+
+        first = min(daily_load)
+        today = date.today()
+        show_from = max(first, today - timedelta(days=365))
+
+        ctl_k = 1 - 1/42
+        atl_k = 1 - 1/7
+        ctl = atl = 0.0
+        dates, ctl_vals, atl_vals, form_vals = [], [], [], []
+
+        cur = first
+        while cur <= today:
+            load = daily_load.get(cur, 0)
+            ctl = ctl * ctl_k + load * (1 - ctl_k)
+            atl = atl * atl_k + load * (1 - atl_k)
+            if cur >= show_from:
+                dates.append(cur.isoformat())
+                ctl_vals.append(round(ctl, 2))
+                atl_vals.append(round(atl, 2))
+                form_vals.append(round(ctl - atl, 2))
+            cur += timedelta(days=1)
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=dates, y=ctl_vals, name="Fitness (CTL)",
+                                 line=dict(color="#4361ee", width=2)))
+        fig.add_trace(go.Scatter(x=dates, y=atl_vals, name="Fatigue (ATL)",
+                                 line=dict(color="#f72585", width=2)))
+        fig.add_trace(go.Scatter(x=dates, y=form_vals, name="Form (CTL−ATL)",
+                                 line=dict(color="#4ade80", width=1.5, dash="dot"),
+                                 fill="tozeroy", fillcolor="rgba(74,222,128,0.08)"))
+        fig.add_hline(y=0, line_color="#555", line_dash="dash", line_width=1)
+        fig.update_layout(
+            title="Training Load — Fitness · Fatigue · Form (last 365 days)",
+            xaxis_title="Date", yaxis_title="Load (smoothed min/day)",
+            **{**self._DARK, "height": 360},
+        )
+        return pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                           div_id="chart-training-load", config={"displayModeBar": False})
+
+    # ── Year-over-Year ───────────────────────────────────────────────────────
+
+    def chart_yoy(self, activities):
+        """Monthly distance grouped by year."""
+        if not activities:
+            return None
+
+        yoy = defaultdict(lambda: defaultdict(float))
+        for a in activities:
+            try:
+                dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
+                yoy[dt.year][dt.month] += a.get("distance", 0) / 1000
+            except Exception:
+                pass
+
+        years = sorted(yoy)
+        month_names = ["Jan","Feb","Mar","Apr","May","Jun",
+                       "Jul","Aug","Sep","Oct","Nov","Dec"]
+        year_colors = ["#4361ee","#f72585","#4cc9f0","#4ade80","#fb923c","#a78bfa"]
+
+        fig = go.Figure()
+        for i, yr in enumerate(years):
+            fig.add_trace(go.Bar(
+                name=str(yr),
+                x=month_names,
+                y=[yoy[yr].get(m, 0) for m in range(1, 13)],
+                marker_color=year_colors[i % len(year_colors)],
+            ))
+        fig.update_layout(
+            title="Year-over-Year Monthly Distance",
+            barmode="group", xaxis_title="Month", yaxis_title="km",
+            **{**self._DARK, "height": 360},
+        )
+        return pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                           div_id="chart-yoy", config={"displayModeBar": False})
+
+    # ── Consistency / Streaks ────────────────────────────────────────────────
+
+    def consistency_stats(self, activities):
+        """Returns (stats_dict, charts_dict) for streak and consistency sections."""
+        if not activities:
+            return {}, {}
+
+        act_dates = set()
+        for a in activities:
+            try:
+                d = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d").date()
+                act_dates.add(d)
+            except Exception:
+                pass
+
+        sorted_dates = sorted(act_dates)
+        today = date.today()
+
+        # Current streak — count back from today; accept yesterday as still active
+        current_streak = 0
+        check = today
+        while check in act_dates:
+            current_streak += 1
+            check -= timedelta(days=1)
+        if current_streak == 0:
+            check = today - timedelta(days=1)
+            while check in act_dates:
+                current_streak += 1
+                check -= timedelta(days=1)
+
+        # Longest streak
+        longest = cur_run = (1 if sorted_dates else 0)
+        for i in range(1, len(sorted_dates)):
+            if (sorted_dates[i] - sorted_dates[i-1]).days == 1:
+                cur_run += 1
+                longest = max(longest, cur_run)
+            else:
+                cur_run = 1
+
+        # Avg days/week over last 12 weeks
+        recent = [d for d in act_dates if d >= today - timedelta(weeks=12)]
+        avg_days = round(len(recent) / 12, 1)
+
+        stats = {
+            'current_streak': current_streak,
+            'longest_streak': longest,
+            'avg_days_per_week': avg_days,
+            'total_active_days': len(act_dates),
+        }
+
+        charts = {}
+
+        # Day-of-week bar chart
+        dow = Counter()
+        for a in activities:
+            try:
+                dow[datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d").weekday()] += 1
+            except Exception:
+                pass
+
+        day_names = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        fig = go.Figure(go.Bar(
+            x=day_names, y=[dow.get(i, 0) for i in range(7)],
+            marker_color="#4361ee",
+        ))
+        fig.update_layout(title="Activities by Day of Week",
+                          xaxis_title="Day", yaxis_title="Count",
+                          **{**self._DARK, "height": 280})
+        charts["dow"] = pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                                    div_id="chart-dow", config={"displayModeBar": False})
+
+        # Time-of-day donut
+        tod = {"Morning (5–11)": 0, "Afternoon (11–17)": 0,
+               "Evening (17–22)": 0, "Night (22–5)": 0}
+        for a in activities:
+            try:
+                h = datetime.strptime(a["start_date_local"][:19], "%Y-%m-%dT%H:%M:%S").hour
+                if 5 <= h < 11:    tod["Morning (5–11)"] += 1
+                elif 11 <= h < 17: tod["Afternoon (11–17)"] += 1
+                elif 17 <= h < 22: tod["Evening (17–22)"] += 1
+                else:              tod["Night (22–5)"] += 1
+            except Exception:
+                pass
+        fig2 = go.Figure(go.Pie(
+            labels=list(tod.keys()), values=list(tod.values()), hole=0.4,
+            marker_colors=["#fb923c","#4cc9f0","#7209b7","#1e293b"],
+        ))
+        fig2.update_layout(title="Time of Day", **{**self._DARK, "height": 280})
+        charts["tod"] = pio.to_html(fig2, full_html=False, include_plotlyjs=False,
+                                    div_id="chart-tod", config={"displayModeBar": False})
+
+        return stats, charts
+
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
@@ -663,6 +936,17 @@ def index():
         sort=sort,
         total=len(activities),
     )
+
+
+@app.route('/calendar')
+def calendar_view():
+    activities = strava.get_activities()
+    year = request.args.get('year', type=int, default=datetime.now().year)
+    chart, available_years = strava.chart_calendar(activities, year)
+    return render_template('calendar.html',
+                           chart=chart,
+                           year=year,
+                           available_years=available_years)
 
 
 @app.route('/sync')
@@ -717,9 +1001,15 @@ def dashboard():
         'elevation': sum(a.get('total_elevation_gain', 0) for a in activities),
     }
 
+    consistency, consistency_charts = strava.consistency_stats(activities)
+
     return render_template(
         'dashboard.html',
         charts=strava.chart_trends(activities),
+        training_load_chart=strava.chart_training_load(activities),
+        yoy_chart=strava.chart_yoy(activities),
+        consistency=consistency,
+        consistency_charts=consistency_charts,
         totals=totals,
     )
 

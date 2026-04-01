@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Calendar — Levitate{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h5 class="fw-semibold mb-0">Activity Calendar</h5>
+  <div class="d-flex gap-2 flex-wrap">
+    {% for y in available_years %}
+    <a href="/calendar?year={{ y }}"
+       class="btn btn-sm {% if y == year %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+      {{ y }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if chart %}
+<div class="chart-card mb-4">{{ chart | safe }}</div>
+{% else %}
+<div class="text-center py-5 text-secondary">
+  No activity data for {{ year }}.
+</div>
+{% endif %}
+
+{% endblock %}
