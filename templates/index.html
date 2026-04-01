@@ -1,13 +1,117 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Strava Activity Visualization</title>
-</head>
-<body>
-    <h1>Enter an Activity ID</h1>
-    <form action="/visualize" method="POST">
-        <input type="text" name="activity_id" placeholder="Activity ID" required>
-        <button type="submit">Visualize</button>
-    </form>
-</body>
-</html>
+{% extends 'base.html' %}
+{% block title %}Activities — Levitate{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h5 class="mb-0 fw-semibold">
+    Activities
+    <span class="text-secondary fw-normal fs-6 ms-1">{{ total }} total</span>
+  </h5>
+  <a href="/sync" class="btn btn-sm btn-outline-warning">↻ Sync from Strava</a>
+</div>
+
+{% if total == 0 %}
+<div class="text-center py-5 text-secondary">
+  <div class="fs-1 mb-2">⛰</div>
+  <p>No activities yet. <a href="/sync" class="text-warning">Sync from Strava</a> to get started.</p>
+</div>
+
+{% else %}
+
+{# ── Filters ── #}
+<form method="GET" action="/" class="row g-2 mb-3">
+  <div class="col-12 col-sm-5 col-md-4">
+    <input type="text" name="q" class="form-control form-control-sm bg-dark border-secondary text-white"
+           placeholder="Search by name…" value="{{ search }}">
+  </div>
+  <div class="col-6 col-sm-3 col-md-2">
+    <select name="sport" class="form-select form-select-sm bg-dark border-secondary text-white">
+      <option value="">All sports</option>
+      {% for s in all_sports %}
+      <option value="{{ s }}" {% if s == sport_filter %}selected{% endif %}>
+        {{ s | sport_icon }} {{ s }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-sm-3 col-md-2">
+    <select name="sort" class="form-select form-select-sm bg-dark border-secondary text-white">
+      <option value="newest"    {% if sort == 'newest'    %}selected{% endif %}>Newest first</option>
+      <option value="oldest"    {% if sort == 'oldest'    %}selected{% endif %}>Oldest first</option>
+      <option value="longest"   {% if sort == 'longest'   %}selected{% endif %}>Longest first</option>
+      <option value="elevation" {% if sort == 'elevation' %}selected{% endif %}>Most elevation</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-primary px-3">Filter</button>
+  </div>
+  {% if search or sport_filter %}
+  <div class="col-auto">
+    <a href="/" class="btn btn-sm btn-outline-secondary">Clear</a>
+  </div>
+  {% endif %}
+</form>
+
+{% if not activities %}
+<p class="text-secondary">No activities match your filters.</p>
+
+{% else %}
+
+<div class="table-responsive">
+  <table class="table table-sm align-middle mb-0" style="font-size: .875rem;">
+    <thead>
+      <tr class="text-secondary border-bottom border-secondary" style="font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;">
+        <th class="fw-normal py-2">Date</th>
+        <th class="fw-normal">Activity</th>
+        <th class="fw-normal">Type</th>
+        <th class="fw-normal text-end">Distance</th>
+        <th class="fw-normal text-end">Time</th>
+        <th class="fw-normal text-end">Pace / Speed</th>
+        <th class="fw-normal text-end">Avg HR</th>
+        <th class="fw-normal text-end">Elevation</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for a in activities %}
+    {% set sport = a.sport_type or a.type %}
+    <tr onclick="location.href='/activity/{{ a.id }}'" style="border-bottom: 1px solid #21262d;">
+      <td class="text-secondary" style="white-space: nowrap;">{{ a.start_date_local | fdate }}</td>
+      <td>
+        <span class="text-white">{{ a.name }}</span>
+      </td>
+      <td>
+        <span class="badge rounded-pill bg-secondary badge-sport">
+          {{ sport | sport_icon }} {{ sport }}
+        </span>
+      </td>
+      <td class="text-end text-white">{{ a.distance | km }} km</td>
+      <td class="text-end text-secondary">{{ a.moving_time | duration }}</td>
+      <td class="text-end text-secondary">
+        {% if 'run' in sport.lower() %}
+          {{ a.average_speed | pace }} /km
+        {% elif a.average_speed %}
+          {{ "%.1f" | format(a.average_speed * 3.6) }} km/h
+        {% else %}—{% endif %}
+      </td>
+      <td class="text-end text-secondary">
+        {% if a.average_heartrate %}{{ a.average_heartrate | int }} bpm{% else %}—{% endif %}
+      </td>
+      <td class="text-end text-secondary">
+        {% if a.total_elevation_gain %}{{ a.total_elevation_gain | int }}m{% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="text-secondary mt-2" style="font-size: .8rem;">
+  Showing {{ activities | length }} of {{ total }} activities
+  {% if search or sport_filter %} (filtered){% endif %}
+</p>
+
+{% endif %}
+{% endif %}
+
+{% endblock %}

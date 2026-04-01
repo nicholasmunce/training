@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Levitate{% endblock %}
+
+{% block content %}
+
+<h5 class="fw-semibold mb-4">Dashboard</h5>
+
+{# ── All-time Totals ── #}
+<div class="row g-2 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Activities</div>
+      <div class="value">{{ totals.count }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Total Distance</div>
+      <div class="value">
+        {{ "%.0f" | format(totals.distance) }}
+        <small class="text-secondary fw-normal" style="font-size:.8rem">km</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Moving Time</div>
+      <div class="value">
+        {{ "%.0f" | format(totals.time) }}
+        <small class="text-secondary fw-normal" style="font-size:.8rem">hrs</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="label">Total Elevation</div>
+      <div class="value">
+        {{ "%.0f" | format(totals.elevation) }}
+        <small class="text-secondary fw-normal" style="font-size:.8rem">m</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Charts ── #}
+{% if not charts %}
+<div class="text-center py-5 text-secondary">
+  <p>No data yet. <a href="/sync" class="text-warning">Sync from Strava</a> first.</p>
+</div>
+{% else %}
+
+<div class="row g-3">
+
+  {% if charts.sport_pie %}
+  <div class="col-12 col-lg-4">
+    <div class="chart-card">{{ charts.sport_pie | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if charts.weekly %}
+  <div class="col-12 col-lg-8">
+    <div class="chart-card">{{ charts.weekly | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if charts.monthly %}
+  <div class="col-12">
+    <div class="chart-card">{{ charts.monthly | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if charts.hr_trend %}
+  <div class="col-12 col-xl-8">
+    <div class="chart-card">{{ charts.hr_trend | safe }}</div>
+  </div>
+  {% endif %}
+
+  {% if charts.dist_hr_scatter %}
+  <div class="col-12 col-xl-4">
+    <div class="chart-card">{{ charts.dist_hr_scatter | safe }}</div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endif %}
+
+{% endblock %}
