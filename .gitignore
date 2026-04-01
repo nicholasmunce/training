@@ -1,0 +1,15 @@
+# Credentials
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+*.db
+
+# Virtual environment
+venv/
+.venv/
+env/
