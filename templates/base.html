@@ -4,45 +4,191 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Levitate{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
-    body { background: #0d1117; }
-    .navbar { background: #161b22 !important; border-bottom: 1px solid #30363d; }
-    .navbar-brand { font-weight: 700; letter-spacing: .05em; font-size: 1.1rem; }
+    :root {
+      --bg:        #07090f;
+      --surface:   #0d1321;
+      --surface-2: #111827;
+      --border:    rgba(255,255,255,.07);
+      --border-strong: rgba(255,255,255,.12);
+      --accent:    #6366f1;
+      --accent-dim: rgba(99,102,241,.18);
+      --text:      #e2e8f0;
+      --text-muted: #64748b;
+      --text-dim:  #334155;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+      font-size: .9375rem;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Navbar ── */
+    .navbar {
+      background: rgba(13,19,33,.85) !important;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding-top: .75rem;
+      padding-bottom: .75rem;
+    }
+    .navbar-brand {
+      font-weight: 700;
+      letter-spacing: -.03em;
+      font-size: 1rem;
+      color: #fff !important;
+    }
+    .nav-link {
+      color: var(--text-muted) !important;
+      font-size: .825rem;
+      font-weight: 500;
+      padding: .35rem .75rem !important;
+      border-radius: 6px;
+      transition: color .15s, background .15s;
+    }
+    .nav-link:hover { color: var(--text) !important; background: rgba(255,255,255,.05); }
+    .nav-link.active { color: #fff !important; background: rgba(255,255,255,.08); }
+    .nav-link.text-warning { color: #f59e0b !important; }
+    .nav-link.text-warning:hover { background: rgba(245,158,11,.1); }
+
+    /* ── Stat Cards ── */
     .stat-card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 1rem 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.2);
+      position: relative;
+      overflow: hidden;
     }
-    .stat-card .label { font-size: .72rem; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; }
-    .stat-card .value { font-size: 1.4rem; font-weight: 700; line-height: 1.2; margin-top: .2rem; }
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,.03) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .stat-card .label {
+      font-size: .68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-weight: 600;
+    }
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.1;
+      margin-top: .5rem;
+      color: #fff;
+      letter-spacing: -.04em;
+    }
+    .stat-card .value small {
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0;
+    }
+
+    /* ── Chart Cards ── */
     .chart-card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
       height: 100%;
+      box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.2);
     }
-    .table { --bs-table-bg: transparent; }
-    .table > tbody > tr:hover { background: rgba(255,255,255,.04); cursor: pointer; }
+
+    /* ── Section Header ── */
+    .section-header {
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      padding-bottom: .6rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Table ── */
+    .table { --bs-table-bg: transparent; color: var(--text); }
+    .table thead th {
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+      border-color: var(--border);
+      padding-top: .65rem;
+      padding-bottom: .65rem;
+    }
+    .table > tbody > tr > td { border-color: var(--border); vertical-align: middle; }
+    .table > tbody > tr:hover { background: rgba(255,255,255,.03); cursor: pointer; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      font-size: .8rem;
+      font-weight: 500;
+    }
+    .btn-primary:hover { background: #4f46e5; border-color: #4f46e5; }
+    .btn-outline-secondary {
+      border-color: var(--border-strong);
+      color: var(--text-muted);
+      font-size: .8rem;
+      font-weight: 500;
+    }
+    .btn-outline-secondary:hover { border-color: var(--accent); color: var(--text); background: var(--accent-dim); }
+    .btn-group .btn { border-radius: 8px !important; }
+
+    /* ── Alerts ── */
+    .alert { border-radius: 10px; font-size: .875rem; }
+
+    /* ── Badge ── */
     .badge-sport { font-size: .7rem; font-weight: 500; }
+
+    /* ── Links ── */
     a { text-decoration: none; }
     a:hover { text-decoration: none; }
-    .nav-link.active { color: #fff !important; }
+
+    /* ── Page header ── */
+    .page-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -.03em;
+      color: #fff;
+    }
+
+    /* ── Scrollbar (webkit) ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
   </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg">
+<nav class="navbar navbar-expand-lg sticky-top">
   <div class="container-fluid px-4">
-    <a class="navbar-brand text-white" href="/">⛰ Levitate</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+    <a class="navbar-brand" href="/">⛰ Levitate</a>
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navMenu">
-      <ul class="navbar-nav ms-auto">
+      <ul class="navbar-nav ms-auto gap-1">
         <li class="nav-item">
           <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Activities</a>
         </li>

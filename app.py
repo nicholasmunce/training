@@ -482,13 +482,15 @@ class StravaAPI:
             "Hike": "#86efac", "WeightTraining": "#fb923c",
         }
 
-        # Sport breakdown — donut
+        # Sport breakdown — donut (only sports with 5+ activities)
         counts = Counter(
             a.get("sport_type") or a.get("type", "Other") for a in activities
         )
+        qualified_sports = {s for s, c in counts.items() if c >= 5}
+        filtered_counts = {s: c for s, c in counts.items() if s in qualified_sports}
         fig = go.Figure(go.Pie(
-            labels=list(counts.keys()), values=list(counts.values()), hole=0.45,
-            marker_colors=[sport_colors.get(s, "#94a3b8") for s in counts],
+            labels=list(filtered_counts.keys()), values=list(filtered_counts.values()), hole=0.45,
+            marker_colors=[sport_colors.get(s, "#94a3b8") for s in filtered_counts],
         ))
         fig.update_layout(title="Activities by Type", **{**self._DARK, "height": 320})
         charts["sport_pie"] = pio.to_html(
@@ -503,6 +505,8 @@ class StravaAPI:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
                 wk = dt.strftime("%G-W%V")
                 sp = a.get("sport_type") or a.get("type", "Other")
+                if sp not in qualified_sports:
+                    continue
                 if metric == 'distance':
                     weekly[wk][sp] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
                 else:
@@ -537,6 +541,8 @@ class StravaAPI:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
                 mo = dt.strftime("%Y-%m")
                 sp = a.get("sport_type") or a.get("type", "Other")
+                if sp not in qualified_sports:
+                    continue
                 if metric == 'distance':
                     monthly[mo][sp] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
                 else:
@@ -598,8 +604,9 @@ class StravaAPI:
                 config={"displayModeBar": False},
             )
 
-        # Scatter: distance vs avg HR (by sport) — all activities
-        acts_with_hr = [a for a in activities if a.get("average_heartrate") and a.get("distance")]
+        # Scatter: distance vs avg HR (by sport) — qualified sports only
+        acts_with_hr = [a for a in activities if a.get("average_heartrate") and a.get("distance")
+                        and (a.get("sport_type") or a.get("type", "")) in qualified_sports]
         if acts_with_hr:
             for sp in sports:
                 sp_acts = [a for a in acts_with_hr

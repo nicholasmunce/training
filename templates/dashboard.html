@@ -4,7 +4,7 @@
 {% block content %}
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-  <h5 class="fw-semibold mb-0">Dashboard</h5>
+  <span class="page-title">Dashboard</span>
   <div class="d-flex gap-2 align-items-center flex-wrap">
     <div class="btn-group btn-group-sm">
       <a href="?metric=distance&unit={{ unit }}" class="btn {% if metric == 'distance' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Distance</a>
@@ -113,7 +113,7 @@
 
 {# ── Consistency & Streaks ── #}
 {% if consistency %}
-<h5 class="fw-semibold mt-5 mb-3">Consistency</h5>
+<div class="section-header mt-5">Consistency</div>
 
 <div class="row g-2 mb-4">
   <div class="col-6 col-md-3">
