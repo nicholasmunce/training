@@ -3,7 +3,6 @@
 
 {% block content %}
 
-<<<<<<< HEAD
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <h5 class="fw-semibold mb-0">Dashboard</h5>
   <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -19,9 +18,6 @@
     {% endif %}
   </div>
 </div>
-=======
-<h5 class="fw-semibold mb-4">Dashboard</h5>
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
 
 {# ── All-time Totals ── #}
 <div class="row g-2 mb-4">
@@ -35,13 +31,8 @@
     <div class="stat-card text-center">
       <div class="label">Total Distance</div>
       <div class="value">
-<<<<<<< HEAD
         {{ "%.0f" | format(totals.distance_display) }}
         <small class="text-secondary fw-normal" style="font-size:.8rem">{{ totals.distance_unit }}</small>
-=======
-        {{ "%.0f" | format(totals.distance) }}
-        <small class="text-secondary fw-normal" style="font-size:.8rem">km</small>
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
       </div>
     </div>
   </div>
@@ -104,7 +95,6 @@
   </div>
   {% endif %}
 
-<<<<<<< HEAD
   {% if training_load_chart %}
   <div class="col-12">
     <div class="chart-card">{{ training_load_chart | safe }}</div>
@@ -117,13 +107,10 @@
   </div>
   {% endif %}
 
-=======
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
 </div>
 
 {% endif %}
 
-<<<<<<< HEAD
 {# ── Consistency & Streaks ── #}
 {% if consistency %}
 <h5 class="fw-semibold mt-5 mb-3">Consistency</h5>
@@ -177,6 +164,4 @@
 </div>
 {% endif %}
 
-=======
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
 {% endblock %}

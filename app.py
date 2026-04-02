@@ -7,11 +7,7 @@ import time
 import plotly.graph_objects as go
 import plotly.io as pio
 from collections import Counter, defaultdict
-<<<<<<< HEAD
 from datetime import datetime, date, timedelta
-=======
-from datetime import datetime
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
 from dotenv import load_dotenv
 
 load_dotenv('first.env')
@@ -465,11 +461,7 @@ class StravaAPI:
 
     # ── Trend / Dashboard Charts ─────────────────────────────────────────────
 
-<<<<<<< HEAD
     def chart_trends(self, activities, metric='distance', unit='km'):
-=======
-    def chart_trends(self, activities):
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
         """Returns dict of chart name → HTML for the /dashboard page."""
         if not activities:
             return {}
@@ -502,14 +494,10 @@ class StravaAPI:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
                 wk = dt.strftime("%G-W%V")
                 sp = a.get("sport_type") or a.get("type", "Other")
-<<<<<<< HEAD
                 if metric == 'distance':
                     weekly[wk][sp] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
                 else:
                     weekly[wk][sp] += a.get("moving_time", 0) / 3600
-=======
-                weekly[wk][sp] += a.get("distance", 0) / 1000
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
             except Exception:
                 pass
 
@@ -522,16 +510,10 @@ class StravaAPI:
                 y=[weekly[w].get(sp, 0) for w in weeks],
                 marker_color=sport_colors.get(sp, "#94a3b8"),
             ))
-<<<<<<< HEAD
         w_ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
         fig2.update_layout(
             title=f"Weekly {'Time' if metric == 'time' else 'Distance'} — last 20 weeks",
             barmode="stack", xaxis_title="Week", yaxis_title=w_ylabel,
-=======
-        fig2.update_layout(
-            title="Weekly Distance — last 20 weeks",
-            barmode="stack", xaxis_title="Week", yaxis_title="km",
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
             **{**self._DARK, "height": 340},
         )
         charts["weekly"] = pio.to_html(
@@ -546,14 +528,10 @@ class StravaAPI:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
                 mo = dt.strftime("%Y-%m")
                 sp = a.get("sport_type") or a.get("type", "Other")
-<<<<<<< HEAD
                 if metric == 'distance':
                     monthly[mo][sp] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
                 else:
                     monthly[mo][sp] += a.get("moving_time", 0) / 3600
-=======
-                monthly[mo][sp] += a.get("distance", 0) / 1000
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
             except Exception:
                 pass
 
@@ -565,16 +543,10 @@ class StravaAPI:
                 y=[monthly[m].get(sp, 0) for m in months],
                 marker_color=sport_colors.get(sp, "#94a3b8"),
             ))
-<<<<<<< HEAD
         m_ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
         fig3.update_layout(
             title=f"Monthly {'Time' if metric == 'time' else 'Distance'} — last 12 months",
             barmode="stack", xaxis_title="Month", yaxis_title=m_ylabel,
-=======
-        fig3.update_layout(
-            title="Monthly Distance — last 12 months",
-            barmode="stack", xaxis_title="Month", yaxis_title="km",
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
             **{**self._DARK, "height": 340},
         )
         charts["monthly"] = pio.to_html(
@@ -654,7 +626,6 @@ class StravaAPI:
 
         return charts
 
-<<<<<<< HEAD
     # ── Calendar Heatmap ─────────────────────────────────────────────────────
 
     def chart_calendar(self, activities, year=None, metric='distance', unit='km'):
@@ -1217,8 +1188,6 @@ class StravaAPI:
         return pio.to_html(fig, full_html=False, include_plotlyjs=False,
                            div_id="chart-radial", config={"displayModeBar": False})
 
-=======
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
@@ -1266,7 +1235,6 @@ def index():
     )
 
 
-<<<<<<< HEAD
 @app.route('/calendar')
 def calendar_view():
     activities = strava.get_activities()
@@ -1332,35 +1300,6 @@ def activity(activity_id):
     else:
         pace_str = '--'
 
-=======
-@app.route('/sync')
-def sync():
-    acts = strava.get_activities(force_refresh=True)
-    flash(f"Synced {len(acts)} activities from Strava.")
-    return redirect(url_for('index'))
-
-
-@app.route('/activity/<int:activity_id>')
-def activity(activity_id):
-    detail = strava.get_activity_detail(activity_id)
-    if not detail:
-        return "Activity not found or API error.", 404
-
-    sport = detail.get('type', '')
-    streams = strava.get_activity_streams(activity_id)
-    zones = strava.get_activity_zones(activity_id)
-    laps = strava.get_activity_laps(activity_id)
-
-    is_run = 'run' in sport.lower()
-    avg_speed = detail.get('average_speed', 0)
-    if is_run and avg_speed:
-        pace_str = fmt_pace(avg_speed) + ' /km'
-    elif avg_speed:
-        pace_str = f"{avg_speed * 3.6:.1f} km/h"
-    else:
-        pace_str = '--'
-
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
     return render_template(
         'activity.html',
         detail=detail,
@@ -1386,7 +1325,6 @@ def dashboard():
         'elevation': sum(a.get('total_elevation_gain', 0) for a in activities),
     }
 
-<<<<<<< HEAD
     metric = request.args.get('metric', 'distance')
     unit = request.args.get('unit', 'km')
     if metric not in ('distance', 'time'):
@@ -1410,12 +1348,6 @@ def dashboard():
         totals=totals,
         metric=metric,
         unit=unit,
-=======
-    return render_template(
-        'dashboard.html',
-        charts=strava.chart_trends(activities),
-        totals=totals,
->>>>>>> 1b492460b75e03111dcc5bd0454af4857d36ade5
     )
 
 
