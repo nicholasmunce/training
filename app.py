@@ -927,6 +927,94 @@ class StravaAPI:
 
         return stats, charts
 
+    # ── Route Heatmap ────────────────────────────────────────────────────────
+
+    def chart_heatmap(self, activities):
+        """Decode summary_polylines and plot all routes on a dark map."""
+        import polyline as pl
+
+        sport_colors = {
+            "Run":              "rgba(249,115,22,0.55)",
+            "TrailRun":         "rgba(181,23,158,0.55)",
+            "VirtualRun":       "rgba(249,115,22,0.35)",
+            "Ride":             "rgba(67,97,238,0.55)",
+            "VirtualRide":      "rgba(67,97,238,0.35)",
+            "MountainBikeRide": "rgba(99,102,241,0.55)",
+            "Swim":             "rgba(76,201,240,0.55)",
+            "Walk":             "rgba(74,222,128,0.55)",
+            "Hike":             "rgba(134,239,172,0.55)",
+            "WeightTraining":   "rgba(251,146,60,0.55)",
+        }
+        default_color = "rgba(148,163,184,0.45)"
+
+        # Group coords by sport type
+        by_sport: dict = defaultdict(lambda: {"lats": [], "lons": []})
+        center_lats, center_lons = [], []
+
+        for a in activities:
+            encoded = (a.get("map") or {}).get("summary_polyline", "")
+            if not encoded:
+                continue
+            try:
+                coords = pl.decode(encoded)
+            except Exception:
+                continue
+            if not coords:
+                continue
+
+            sp = a.get("sport_type") or a.get("type", "Other")
+            lats = [c[0] for c in coords]
+            lons = [c[1] for c in coords]
+            by_sport[sp]["lats"].extend(lats + [None])
+            by_sport[sp]["lons"].extend(lons + [None])
+            center_lats.append(lats[0])
+            center_lons.append(lons[0])
+
+        if not center_lats:
+            return None, []
+
+        center_lat = sum(center_lats) / len(center_lats)
+        center_lon = sum(center_lons) / len(center_lons)
+
+        fig = go.Figure()
+        sports_present = []
+        for sp, data in sorted(by_sport.items()):
+            fig.add_trace(go.Scattermapbox(
+                lat=data["lats"],
+                lon=data["lons"],
+                mode="lines",
+                name=sp,
+                line=dict(width=1.5, color=sport_colors.get(sp, default_color)),
+                hoverinfo="skip",
+            ))
+            sports_present.append(sp)
+
+        fig.update_layout(
+            mapbox=dict(
+                style="carto-darkmatter",
+                center=dict(lat=center_lat, lon=center_lon),
+                zoom=11,
+            ),
+            margin=dict(l=0, r=0, t=0, b=0),
+            height=620,
+            paper_bgcolor="rgba(0,0,0,0)",
+            legend=dict(
+                bgcolor="rgba(13,19,33,0.85)",
+                bordercolor="rgba(255,255,255,0.07)",
+                borderwidth=1,
+                font=dict(color="#e2e8f0", size=12),
+                x=0.01, y=0.99,
+                xanchor="left", yanchor="top",
+            ),
+        )
+
+        html = pio.to_html(
+            fig, full_html=False, include_plotlyjs=False,
+            div_id="chart-heatmap",
+            config={"displayModeBar": True, "scrollZoom": True},
+        )
+        return html, sports_present
+
     # ── Hex → RGBA helper ────────────────────────────────────────────────────
 
     @staticmethod
@@ -1368,6 +1456,23 @@ def dashboard():
         totals=totals,
         metric=metric,
         unit=unit,
+    )
+
+
+@app.route('/heatmap')
+def heatmap():
+    activities = strava.get_activities()
+    heatmap_html, sports = strava.chart_heatmap(activities)
+    total_with_routes = sum(
+        1 for a in activities
+        if (a.get("map") or {}).get("summary_polyline", "")
+    )
+    return render_template(
+        'heatmap.html',
+        heatmap_html=heatmap_html,
+        sports=sports,
+        total_with_routes=total_with_routes,
+        total_activities=len(activities),
     )
 
 

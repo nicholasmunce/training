@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Heatmap — Levitate{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <span class="page-title">Route Heatmap</span>
+  <span class="text-muted" style="font-size:.8rem">
+    {{ total_with_routes }} of {{ total_activities }} activities have GPS routes
+  </span>
+</div>
+
+{% if not heatmap_html %}
+<div class="chart-card text-center py-5">
+  <p class="text-muted mb-1">No GPS route data found.</p>
+  <p class="text-muted" style="font-size:.85rem">
+    <a href="/sync" class="text-warning">Sync from Strava</a> to load activities with polylines.
+  </p>
+</div>
+{% else %}
+
+{% if sports %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% for sp in sports %}
+  <span class="badge rounded-pill px-3 py-1" style="
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1);
+    font-size: .75rem;
+    font-weight: 500;
+    color: #e2e8f0;
+  ">{{ sp }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="chart-card p-0" style="border-radius: 14px; overflow: hidden;">
+  {{ heatmap_html | safe }}
+</div>
+
+<p class="text-muted mt-3" style="font-size:.75rem">
+  Scroll to zoom · Click &amp; drag to pan · Double-click to reset view
+</p>
+
+{% endif %}
+
+{% endblock %}
