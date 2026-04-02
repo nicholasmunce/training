@@ -7,6 +7,7 @@ import time
 import plotly.graph_objects as go
 import plotly.io as pio
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
 
@@ -97,6 +98,10 @@ class StravaAPI:
         # Token cache — avoid one refresh per API call
         self._access_token = None
         self._token_expires_at = 0
+        # Persistent HTTP session — reuses TCP connections across API calls
+        self._session = requests.Session()
+        # In-memory activities cache — avoids json.loads on every page load
+        self._activities_cache = None
         self._init_db()
 
     def _init_db(self):
@@ -131,7 +136,7 @@ class StravaAPI:
     def get_access_token(self):
         if self._access_token and time.time() < self._token_expires_at - 60:
             return self._access_token
-        resp = requests.post(self.token_url, data={
+        resp = self._session.post(self.token_url, data={
             'client_id': self.client_id,
             'client_secret': self.client_secret,
             'refresh_token': self.refresh_token,
@@ -148,7 +153,7 @@ class StravaAPI:
         token = self.get_access_token()
         if not token:
             return None
-        resp = requests.get(
+        resp = self._session.get(
             f"{self.base_url}{path}",
             headers={"Authorization": f"Bearer {token}"},
             params=params or {},
@@ -159,12 +164,15 @@ class StravaAPI:
 
     def get_activities(self, force_refresh=False):
         if not force_refresh:
+            if self._activities_cache is not None:
+                return self._activities_cache
             with sqlite3.connect(self.db_name) as conn:
                 row = conn.execute(
                     "SELECT data FROM activities_list ORDER BY id DESC LIMIT 1"
                 ).fetchone()
                 if row:
-                    return json.loads(row[0])
+                    self._activities_cache = json.loads(row[0])
+                    return self._activities_cache
 
         all_acts = []
         page = 1
@@ -185,6 +193,7 @@ class StravaAPI:
                     (json.dumps(all_acts), int(time.time())),
                 )
                 conn.commit()
+            self._activities_cache = all_acts
         return all_acts
 
     # ── Activity Detail ──────────────────────────────────────────────────────
@@ -1287,9 +1296,13 @@ def activity(activity_id):
         return "Activity not found or API error.", 404
 
     sport = detail.get('type', '')
-    streams = strava.get_activity_streams(activity_id)
-    zones = strava.get_activity_zones(activity_id)
-    laps = strava.get_activity_laps(activity_id)
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        f_streams = executor.submit(strava.get_activity_streams, activity_id)
+        f_zones   = executor.submit(strava.get_activity_zones,   activity_id)
+        f_laps    = executor.submit(strava.get_activity_laps,    activity_id)
+    streams = f_streams.result()
+    zones   = f_zones.result()
+    laps    = f_laps.result()
 
     is_run = 'run' in sport.lower()
     avg_speed = detail.get('average_speed', 0)
