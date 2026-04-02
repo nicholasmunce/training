@@ -3,11 +3,25 @@
 
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+{# Build a sport param string to append to other filter links #}
+{% set sport_qs %}{% for s in selected_sports %}&sport={{ s }}{% endfor %}{% endset %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h5 class="fw-semibold mb-0">Activity Calendar</h5>
-  <div class="d-flex gap-2 flex-wrap">
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <div class="btn-group btn-group-sm">
+      <a href="?metric=distance&unit={{ unit }}&year={{ year }}{{ sport_qs }}" class="btn {% if metric == 'distance' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Distance</a>
+      <a href="?metric=time&unit={{ unit }}&year={{ year }}{{ sport_qs }}" class="btn {% if metric == 'time' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Time</a>
+    </div>
+    {% if metric == 'distance' %}
+    <div class="btn-group btn-group-sm">
+      <a href="?metric={{ metric }}&unit=km&year={{ year }}{{ sport_qs }}" class="btn {% if unit == 'km' %}btn-primary{% else %}btn-outline-secondary{% endif %}">km</a>
+      <a href="?metric={{ metric }}&unit=mi&year={{ year }}{{ sport_qs }}" class="btn {% if unit == 'mi' %}btn-primary{% else %}btn-outline-secondary{% endif %}">mi</a>
+    </div>
+    {% endif %}
+    <div class="vr mx-1 opacity-25"></div>
     {% for y in available_years %}
-    <a href="/calendar?year={{ y }}"
+    <a href="?year={{ y }}&metric={{ metric }}&unit={{ unit }}{{ sport_qs }}"
        class="btn btn-sm {% if y == year %}btn-primary{% else %}btn-outline-secondary{% endif %}">
       {{ y }}
     </a>
@@ -15,12 +29,75 @@
   </div>
 </div>
 
-{% if chart %}
-<div class="chart-card mb-4">{{ chart | safe }}</div>
-{% else %}
+{# ── Sport multi-select ── #}
+{% if all_sports %}
+<form id="sport-form" method="GET" action="/calendar" class="mb-4">
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="metric" value="{{ metric }}">
+  <input type="hidden" name="unit" value="{{ unit }}">
+  <div class="d-flex gap-1 flex-wrap align-items-center">
+    <span class="text-secondary me-1" style="font-size:.75rem; text-transform:uppercase; letter-spacing:.05em;">Sports</span>
+    {% for sport in all_sports %}
+    {% set is_checked = (not selected_sports) or (sport in selected_sports) %}
+    <input type="checkbox" class="btn-check" name="sport" value="{{ sport }}"
+           id="chk-{{ sport }}" autocomplete="off"
+           {% if is_checked %}checked{% endif %}
+           onchange="document.getElementById('sport-form').submit()">
+    <label class="btn btn-sm btn-outline-secondary py-0 px-2" for="chk-{{ sport }}" style="font-size:.8rem; line-height:1.8;">
+      {{ sport | sport_icon }} {{ sport }}
+    </label>
+    {% endfor %}
+    {% if selected_sports %}
+    <a href="?year={{ year }}&metric={{ metric }}&unit={{ unit }}"
+       class="btn btn-sm btn-outline-danger py-0 px-2 ms-1" style="font-size:.8rem; line-height:1.8;">
+      ✕ Clear
+    </a>
+    {% endif %}
+  </div>
+</form>
+{% endif %}
+
+{% if not chart and not streamgraph %}
 <div class="text-center py-5 text-secondary">
-  No activity data for {{ year }}.
+  No activity data. <a href="/sync" class="text-warning">Sync from Strava</a> first.
 </div>
+{% else %}
+
+{# ── GitHub Calendar ── #}
+{% if chart %}
+<h6 class="text-secondary text-uppercase mb-2" style="letter-spacing:.08em; font-size:.72rem;">{{ year }} Heatmap</h6>
+<div class="chart-card mb-4">{{ chart | safe }}</div>
+{% endif %}
+
+{# ── Streamgraph ── #}
+{% if streamgraph %}
+<h6 class="text-secondary text-uppercase mb-2 mt-4" style="letter-spacing:.08em; font-size:.72rem;">All-Time Volume by Sport</h6>
+<div class="chart-card mb-4">{{ streamgraph | safe }}</div>
+{% endif %}
+
+{# ── Lollipop ── #}
+{% if lollipop %}
+<h6 class="text-secondary text-uppercase mb-2 mt-4" style="letter-spacing:.08em; font-size:.72rem;">Weekly Volume + Trend</h6>
+<div class="chart-card mb-4">{{ lollipop | safe }}</div>
+{% endif %}
+
+{# ── Ridge + Radial side by side ── #}
+{% if ridgeline or radial %}
+<h6 class="text-secondary text-uppercase mb-2 mt-4" style="letter-spacing:.08em; font-size:.72rem;">Seasonal Patterns</h6>
+<div class="row g-3 mb-4">
+  {% if ridgeline %}
+  <div class="col-12 col-xl-7">
+    <div class="chart-card">{{ ridgeline | safe }}</div>
+  </div>
+  {% endif %}
+  {% if radial %}
+  <div class="col-12 col-xl-5">
+    <div class="chart-card">{{ radial | safe }}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% endif %}
 
 {% endblock %}

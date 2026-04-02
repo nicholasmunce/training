@@ -461,7 +461,7 @@ class StravaAPI:
 
     # ── Trend / Dashboard Charts ─────────────────────────────────────────────
 
-    def chart_trends(self, activities):
+    def chart_trends(self, activities, metric='distance', unit='km'):
         """Returns dict of chart name → HTML for the /dashboard page."""
         if not activities:
             return {}
@@ -494,7 +494,10 @@ class StravaAPI:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
                 wk = dt.strftime("%G-W%V")
                 sp = a.get("sport_type") or a.get("type", "Other")
-                weekly[wk][sp] += a.get("distance", 0) / 1000
+                if metric == 'distance':
+                    weekly[wk][sp] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    weekly[wk][sp] += a.get("moving_time", 0) / 3600
             except Exception:
                 pass
 
@@ -507,9 +510,10 @@ class StravaAPI:
                 y=[weekly[w].get(sp, 0) for w in weeks],
                 marker_color=sport_colors.get(sp, "#94a3b8"),
             ))
+        w_ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
         fig2.update_layout(
-            title="Weekly Distance — last 20 weeks",
-            barmode="stack", xaxis_title="Week", yaxis_title="km",
+            title=f"Weekly {'Time' if metric == 'time' else 'Distance'} — last 20 weeks",
+            barmode="stack", xaxis_title="Week", yaxis_title=w_ylabel,
             **{**self._DARK, "height": 340},
         )
         charts["weekly"] = pio.to_html(
@@ -524,7 +528,10 @@ class StravaAPI:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
                 mo = dt.strftime("%Y-%m")
                 sp = a.get("sport_type") or a.get("type", "Other")
-                monthly[mo][sp] += a.get("distance", 0) / 1000
+                if metric == 'distance':
+                    monthly[mo][sp] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    monthly[mo][sp] += a.get("moving_time", 0) / 3600
             except Exception:
                 pass
 
@@ -536,9 +543,10 @@ class StravaAPI:
                 y=[monthly[m].get(sp, 0) for m in months],
                 marker_color=sport_colors.get(sp, "#94a3b8"),
             ))
+        m_ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
         fig3.update_layout(
-            title="Monthly Distance — last 12 months",
-            barmode="stack", xaxis_title="Month", yaxis_title="km",
+            title=f"Monthly {'Time' if metric == 'time' else 'Distance'} — last 12 months",
+            barmode="stack", xaxis_title="Month", yaxis_title=m_ylabel,
             **{**self._DARK, "height": 340},
         )
         charts["monthly"] = pio.to_html(
@@ -620,7 +628,7 @@ class StravaAPI:
 
     # ── Calendar Heatmap ─────────────────────────────────────────────────────
 
-    def chart_calendar(self, activities, year=None):
+    def chart_calendar(self, activities, year=None, metric='distance', unit='km'):
         """GitHub-style activity heatmap for a given year."""
         if not activities:
             return None, []
@@ -633,7 +641,11 @@ class StravaAPI:
             try:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
                 if dt.year == year:
-                    daily[dt.date()] += a.get("distance", 0) / 1000
+                    if metric == 'distance':
+                        val = a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                    else:
+                        val = a.get("moving_time", 0) / 60
+                    daily[dt.date()] += val
             except Exception:
                 pass
 
@@ -658,7 +670,8 @@ class StravaAPI:
                     val = daily.get(day, 0)
                     z[di][wi] = val
                     label = day.strftime('%b %-d')
-                    text[di][wi] = f"{label}: {val:.1f} km" if val > 0 else label
+                    ulabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('min' if metric == 'time' else 'km')
+                    text[di][wi] = f"{label}: {val:.1f} {ulabel}" if val > 0 else label
 
         x_labels = ['' for _ in range(num_weeks)]
         for wi, week in enumerate(weeks):
@@ -686,7 +699,7 @@ class StravaAPI:
             zmin=0,
         ))
         fig.update_layout(
-            title=f"{year} Activity Calendar",
+            title=f"{year} Activity Calendar ({'mi' if (metric == 'distance' and unit == 'mi') else 'min' if metric == 'time' else 'km'})",
             xaxis=dict(tickvals=list(range(num_weeks)), ticktext=x_labels,
                        showgrid=False, zeroline=False),
             yaxis=dict(showgrid=False, autorange='reversed'),
@@ -708,7 +721,7 @@ class StravaAPI:
 
     # ── Training Load ────────────────────────────────────────────────────────
 
-    def chart_training_load(self, activities):
+    def chart_training_load(self, activities, metric='distance', unit='km'):
         """CTL (fitness), ATL (fatigue), Form chart over last 365 days."""
         if not activities:
             return None
@@ -717,7 +730,10 @@ class StravaAPI:
         for a in activities:
             try:
                 d = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d").date()
-                daily_load[d] += a.get("moving_time", 0) / 60  # minutes
+                if metric == 'distance':
+                    daily_load[d] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    daily_load[d] += a.get("moving_time", 0) / 60  # minutes
             except Exception:
                 pass
 
@@ -756,7 +772,7 @@ class StravaAPI:
         fig.add_hline(y=0, line_color="#555", line_dash="dash", line_width=1)
         fig.update_layout(
             title="Training Load — Fitness · Fatigue · Form (last 365 days)",
-            xaxis_title="Date", yaxis_title="Load (smoothed min/day)",
+            xaxis_title="Date", yaxis_title=f"Load (smoothed {'mi' if (metric == 'distance' and unit == 'mi') else 'km' if metric == 'distance' else 'min'}/day)",
             **{**self._DARK, "height": 360},
         )
         return pio.to_html(fig, full_html=False, include_plotlyjs=False,
@@ -764,7 +780,7 @@ class StravaAPI:
 
     # ── Year-over-Year ───────────────────────────────────────────────────────
 
-    def chart_yoy(self, activities):
+    def chart_yoy(self, activities, metric='distance', unit='km'):
         """Monthly distance grouped by year."""
         if not activities:
             return None
@@ -773,7 +789,10 @@ class StravaAPI:
         for a in activities:
             try:
                 dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
-                yoy[dt.year][dt.month] += a.get("distance", 0) / 1000
+                if metric == 'distance':
+                    yoy[dt.year][dt.month] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    yoy[dt.year][dt.month] += a.get("moving_time", 0) / 3600
             except Exception:
                 pass
 
@@ -790,9 +809,10 @@ class StravaAPI:
                 y=[yoy[yr].get(m, 0) for m in range(1, 13)],
                 marker_color=year_colors[i % len(year_colors)],
             ))
+        yoy_ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
         fig.update_layout(
-            title="Year-over-Year Monthly Distance",
-            barmode="group", xaxis_title="Month", yaxis_title="km",
+            title=f"Year-over-Year Monthly {'Time' if metric == 'time' else 'Distance'}",
+            barmode="group", xaxis_title="Month", yaxis_title=yoy_ylabel,
             **{**self._DARK, "height": 360},
         )
         return pio.to_html(fig, full_html=False, include_plotlyjs=False,
@@ -891,6 +911,283 @@ class StravaAPI:
 
         return stats, charts
 
+    # ── Hex → RGBA helper ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _hex_rgba(hex_color, alpha=0.35):
+        h = hex_color.lstrip('#')
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
+    # ── Streamgraph ──────────────────────────────────────────────────────────
+
+    def chart_streamgraph(self, activities, metric='distance', unit='km'):
+        """Stacked area: weekly volume by sport, all time."""
+        if not activities:
+            return None
+
+        sport_colors = {
+            "Run": "#f72585", "TrailRun": "#b5179e", "Ride": "#4361ee",
+            "VirtualRide": "#3a0ca3", "Swim": "#4cc9f0", "Walk": "#4ade80",
+            "Hike": "#86efac", "WeightTraining": "#fb923c",
+        }
+
+        weekly = defaultdict(lambda: defaultdict(float))
+        for a in activities:
+            try:
+                dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
+                wk = dt.strftime("%G-W%V")
+                sp = a.get("sport_type") or a.get("type", "Other")
+                if metric == 'distance':
+                    weekly[wk][sp] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    weekly[wk][sp] += a.get("moving_time", 0) / 3600
+            except Exception:
+                pass
+
+        if not weekly:
+            return None
+
+        all_weeks = sorted(weekly)
+        sports = sorted({sp for w in weekly.values() for sp in w})
+        ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
+
+        fig = go.Figure()
+        for sp in sports:
+            color = sport_colors.get(sp, '#94a3b8')
+            fig.add_trace(go.Scatter(
+                x=all_weeks,
+                y=[weekly[w].get(sp, 0) for w in all_weeks],
+                name=sp,
+                stackgroup='one',
+                line=dict(width=0.5, color=color),
+                fillcolor=self._hex_rgba(color, 0.85),
+                hovertemplate=f"{sp}: %{{y:.1f}} {ylabel}<extra></extra>",
+            ))
+        fig.update_layout(
+            title="Weekly Training Volume — All Time",
+            xaxis_title="Week", yaxis_title=ylabel,
+            hovermode='x unified',
+            **{**self._DARK, "height": 380},
+        )
+        return pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                           div_id="chart-streamgraph", config={"displayModeBar": False})
+
+    # ── Lollipop + Rolling Average ───────────────────────────────────────────
+
+    def chart_lollipop(self, activities, metric='distance', unit='km'):
+        """Weekly volume bars + 6-week rolling average line."""
+        if not activities:
+            return None
+
+        weekly = defaultdict(float)
+        for a in activities:
+            try:
+                dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
+                wk = dt.strftime("%G-W%V")
+                if metric == 'distance':
+                    weekly[wk] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    weekly[wk] += a.get("moving_time", 0) / 3600
+            except Exception:
+                pass
+
+        if not weekly:
+            return None
+
+        all_weeks = sorted(weekly)[-104:]  # last 2 years
+        vals = [weekly[w] for w in all_weeks]
+
+        window = 6
+        rolling = []
+        for i in range(len(vals)):
+            start = max(0, i - window + 1)
+            rolling.append(sum(vals[start:i+1]) / (i - start + 1))
+
+        ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
+
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=all_weeks, y=vals,
+            name="Weekly",
+            marker_color='rgba(67,97,238,0.3)',
+            marker_line_width=0,
+            hovertemplate="%{x}<br>%{y:.1f} " + ylabel + "<extra></extra>",
+        ))
+        fig.add_trace(go.Scatter(
+            x=all_weeks, y=vals,
+            mode='markers',
+            marker=dict(color='#4361ee', size=5),
+            showlegend=False,
+            hoverinfo='skip',
+        ))
+        fig.add_trace(go.Scatter(
+            x=all_weeks, y=rolling,
+            mode='lines',
+            name='6-wk avg',
+            line=dict(color='#f72585', width=2.5),
+            hovertemplate="%{x}<br>6-wk avg: %{y:.1f} " + ylabel + "<extra></extra>",
+        ))
+        fig.update_layout(
+            title="Weekly Volume + 6-Week Rolling Average (last 2 years)",
+            xaxis_title="Week", yaxis_title=ylabel,
+            barmode='overlay',
+            **{**self._DARK, "height": 360},
+        )
+        return pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                           div_id="chart-lollipop", config={"displayModeBar": False})
+
+    # ── Ridgeline / Joy Plot ─────────────────────────────────────────────────
+
+    def chart_ridgeline(self, activities, metric='distance', unit='km'):
+        """Joy plot: one filled ridge per year, x = week of year."""
+        if not activities:
+            return None
+
+        by_year_week = defaultdict(lambda: defaultdict(float))
+        for a in activities:
+            try:
+                dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
+                yr = dt.year
+                woy = int(dt.strftime("%V"))
+                if metric == 'distance':
+                    by_year_week[yr][woy] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    by_year_week[yr][woy] += a.get("moving_time", 0) / 3600
+            except Exception:
+                pass
+
+        if not by_year_week:
+            return None
+
+        years = sorted(by_year_week.keys(), reverse=True)  # newest at top
+        weeks = list(range(1, 54))
+        all_vals = [v for d in by_year_week.values() for v in d.values()]
+        global_max = max(all_vals) if all_vals else 1
+        ridge_height = global_max * 0.9
+        colors = ["#f72585","#4361ee","#4cc9f0","#4ade80","#fb923c","#a78bfa","#94a3b8"]
+
+        fig = go.Figure()
+        for i, yr in enumerate(years):
+            color = colors[i % len(colors)]
+            y_offset = i * ridge_height
+            vals = [by_year_week[yr].get(w, 0) for w in weeks]
+            y_top = [y_offset + v for v in vals]
+            y_base = [y_offset] * len(weeks)
+
+            # Filled polygon
+            fig.add_trace(go.Scatter(
+                x=weeks + list(reversed(weeks)),
+                y=y_top + list(reversed(y_base)),
+                fill='toself',
+                fillcolor=self._hex_rgba(color, 0.4),
+                line=dict(color=color, width=0),
+                mode='lines',
+                showlegend=False,
+                hoverinfo='skip',
+            ))
+            # Top edge line with hover
+            fig.add_trace(go.Scatter(
+                x=weeks,
+                y=y_top,
+                mode='lines',
+                line=dict(color=color, width=1.5),
+                name=str(yr),
+                customdata=vals,
+                hovertemplate=f"{yr} · wk %{{x}}: %{{customdata:.1f}}<extra></extra>",
+            ))
+
+        month_ticks = [1, 5, 9, 14, 18, 22, 27, 31, 35, 40, 44, 48]
+        month_labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        tickvals = [i * ridge_height for i in range(len(years))]
+        ticktext = [str(yr) for yr in years]
+
+        fig.update_layout(
+            title="Weekly Volume by Year — Ridge Plot",
+            xaxis=dict(tickvals=month_ticks, ticktext=month_labels, showgrid=False, zeroline=False),
+            yaxis=dict(tickvals=tickvals, ticktext=ticktext, showgrid=False, zeroline=False),
+            **{**self._DARK, "height": max(320, len(years) * 90)},
+        )
+        fig.update_layout(margin=dict(l=55, r=20, t=45, b=45))
+        return pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                           div_id="chart-ridgeline", config={"displayModeBar": False})
+
+    # ── Radial / Polar Bar ───────────────────────────────────────────────────
+
+    def chart_radial(self, activities, metric='distance', unit='km'):
+        """Polar bar chart: 52 weeks as spokes, one trace per year."""
+        if not activities:
+            return None
+
+        by_year_week = defaultdict(lambda: defaultdict(float))
+        for a in activities:
+            try:
+                dt = datetime.strptime(a["start_date_local"][:10], "%Y-%m-%d")
+                yr = dt.year
+                woy = int(dt.strftime("%V"))
+                if metric == 'distance':
+                    by_year_week[yr][woy] += a.get("distance", 0) / (1000 if unit == 'km' else 1609.34)
+                else:
+                    by_year_week[yr][woy] += a.get("moving_time", 0) / 3600
+            except Exception:
+                pass
+
+        if not by_year_week:
+            return None
+
+        years = sorted(by_year_week.keys())
+        year_colors = ["#4361ee","#f72585","#4cc9f0","#4ade80","#fb923c","#a78bfa"]
+        weeks = list(range(1, 53))
+        theta = [(w - 1) * (360 / 52) for w in weeks]
+        ylabel = 'mi' if (metric == 'distance' and unit == 'mi') else ('hrs' if metric == 'time' else 'km')
+
+        fig = go.Figure()
+        for i, yr in enumerate(years):
+            color = year_colors[i % len(year_colors)]
+            r_vals = [by_year_week[yr].get(w, 0) for w in weeks]
+            labels = [f"Wk {w}: {r_vals[j]:.1f} {ylabel}" for j, w in enumerate(weeks)]
+            fig.add_trace(go.Barpolar(
+                r=r_vals,
+                theta=theta,
+                name=str(yr),
+                marker_color=self._hex_rgba(color, 0.65),
+                marker_line_color=color,
+                marker_line_width=0.5,
+                text=labels,
+                hovertemplate=f"{yr} · %{{text}}<extra></extra>",
+            ))
+
+        month_week_starts = [1, 5, 9, 14, 18, 22, 27, 31, 35, 40, 44, 48]
+        month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        month_theta = [(w - 1) * (360 / 52) for w in month_week_starts]
+
+        fig.update_layout(
+            title="Annual Training Pattern",
+            polar=dict(
+                radialaxis=dict(
+                    showticklabels=True,
+                    gridcolor='#30363d',
+                    tickcolor='#8b949e',
+                    tickfont=dict(size=9),
+                ),
+                angularaxis=dict(
+                    tickvals=month_theta,
+                    ticktext=month_names,
+                    direction='clockwise',
+                    rotation=90,
+                    gridcolor='#30363d',
+                    tickfont=dict(size=10),
+                ),
+                bgcolor='rgba(0,0,0,0)',
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#adb5bd'),
+            margin=dict(l=40, r=40, t=60, b=40),
+            height=500,
+        )
+        return pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                           div_id="chart-radial", config={"displayModeBar": False})
+
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
@@ -942,11 +1239,38 @@ def index():
 def calendar_view():
     activities = strava.get_activities()
     year = request.args.get('year', type=int, default=datetime.now().year)
-    chart, available_years = strava.chart_calendar(activities, year)
+    metric = request.args.get('metric', 'distance')
+    unit = request.args.get('unit', 'km')
+    if metric not in ('distance', 'time'):
+        metric = 'distance'
+    if unit not in ('km', 'mi'):
+        unit = 'km'
+
+    all_sports = sorted({
+        a.get('sport_type') or a.get('type', '')
+        for a in activities
+    } - {''})
+
+    selected_sports = request.args.getlist('sport')
+    if selected_sports:
+        acts = [a for a in activities
+                if (a.get('sport_type') or a.get('type', '')) in selected_sports]
+    else:
+        acts = activities
+
+    chart, available_years = strava.chart_calendar(acts, year, metric, unit)
     return render_template('calendar.html',
                            chart=chart,
                            year=year,
-                           available_years=available_years)
+                           available_years=available_years,
+                           streamgraph=strava.chart_streamgraph(acts, metric, unit),
+                           lollipop=strava.chart_lollipop(acts, metric, unit),
+                           ridgeline=strava.chart_ridgeline(acts, metric, unit),
+                           radial=strava.chart_radial(acts, metric, unit),
+                           all_sports=all_sports,
+                           selected_sports=selected_sports,
+                           metric=metric,
+                           unit=unit)
 
 
 @app.route('/sync')
@@ -1001,16 +1325,29 @@ def dashboard():
         'elevation': sum(a.get('total_elevation_gain', 0) for a in activities),
     }
 
+    metric = request.args.get('metric', 'distance')
+    unit = request.args.get('unit', 'km')
+    if metric not in ('distance', 'time'):
+        metric = 'distance'
+    if unit not in ('km', 'mi'):
+        unit = 'km'
+
+    dist_km = totals['distance']
+    totals['distance_display'] = dist_km * 0.621371 if unit == 'mi' else dist_km
+    totals['distance_unit'] = unit
+
     consistency, consistency_charts = strava.consistency_stats(activities)
 
     return render_template(
         'dashboard.html',
-        charts=strava.chart_trends(activities),
-        training_load_chart=strava.chart_training_load(activities),
-        yoy_chart=strava.chart_yoy(activities),
+        charts=strava.chart_trends(activities, metric, unit),
+        training_load_chart=strava.chart_training_load(activities, metric, unit),
+        yoy_chart=strava.chart_yoy(activities, metric, unit),
         consistency=consistency,
         consistency_charts=consistency_charts,
         totals=totals,
+        metric=metric,
+        unit=unit,
     )
 
 

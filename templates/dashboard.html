@@ -3,7 +3,21 @@
 
 {% block content %}
 
-<h5 class="fw-semibold mb-4">Dashboard</h5>
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <h5 class="fw-semibold mb-0">Dashboard</h5>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <div class="btn-group btn-group-sm">
+      <a href="?metric=distance&unit={{ unit }}" class="btn {% if metric == 'distance' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Distance</a>
+      <a href="?metric=time&unit={{ unit }}" class="btn {% if metric == 'time' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Time</a>
+    </div>
+    {% if metric == 'distance' %}
+    <div class="btn-group btn-group-sm">
+      <a href="?metric={{ metric }}&unit=km" class="btn {% if unit == 'km' %}btn-primary{% else %}btn-outline-secondary{% endif %}">km</a>
+      <a href="?metric={{ metric }}&unit=mi" class="btn {% if unit == 'mi' %}btn-primary{% else %}btn-outline-secondary{% endif %}">mi</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
 
 {# ── All-time Totals ── #}
 <div class="row g-2 mb-4">
@@ -17,8 +31,8 @@
     <div class="stat-card text-center">
       <div class="label">Total Distance</div>
       <div class="value">
-        {{ "%.0f" | format(totals.distance) }}
-        <small class="text-secondary fw-normal" style="font-size:.8rem">km</small>
+        {{ "%.0f" | format(totals.distance_display) }}
+        <small class="text-secondary fw-normal" style="font-size:.8rem">{{ totals.distance_unit }}</small>
       </div>
     </div>
   </div>
