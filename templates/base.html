@@ -199,10 +199,19 @@
           <a class="nav-link {% if request.path == '/calendar' %}active{% endif %}" href="/calendar">Calendar</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {% if request.path == '/heatmap' %}active{% endif %}" href="/heatmap">Heatmap</a>
+          <a class="nav-link {% if request.path == '/records' %}active{% endif %}" href="/records">Records</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-warning" href="/sync" title="Sync from Strava">↻ Sync</a>
+          <a class="nav-link {% if request.path == '/heatmap' %}active{% endif %}" href="/heatmap">Heatmap</a>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link text-warning dropdown-toggle" href="#" role="button"
+             data-bs-toggle="dropdown" aria-expanded="false" title="Sync from Strava">↻ Sync</a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="/sync">Quick sync<span class="d-block text-secondary" style="font-size:.72rem">Fetch only new activities</span></a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/sync?full=1">Full re-sync<span class="d-block text-secondary" style="font-size:.72rem">Re-scan entire history</span></a></li>
+          </ul>
         </li>
       </ul>
     </div>

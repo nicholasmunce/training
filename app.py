@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from dotenv import load_dotenv
 
 load_dotenv('first.env')
@@ -107,6 +107,17 @@ class StravaAPI:
     def _init_db(self):
         with sqlite3.connect(self.db_name) as conn:
             conn.executescript("""
+                -- One row per Strava activity, keyed by its real id so we can
+                -- upsert incrementally instead of reloading the whole list.
+                CREATE TABLE IF NOT EXISTS activities (
+                    id          INTEGER PRIMARY KEY,
+                    sport_type  TEXT,
+                    start_date  TEXT,
+                    data        TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_activities_start
+                    ON activities (start_date DESC);
+                -- Legacy single-blob cache, kept only for one-time migration.
                 CREATE TABLE IF NOT EXISTS activities_list (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     data        TEXT,
@@ -163,38 +174,100 @@ class StravaAPI:
     # ── Activities List ──────────────────────────────────────────────────────
 
     def get_activities(self, force_refresh=False):
-        if not force_refresh:
-            if self._activities_cache is not None:
-                return self._activities_cache
-            with sqlite3.connect(self.db_name) as conn:
-                row = conn.execute(
-                    "SELECT data FROM activities_list ORDER BY id DESC LIMIT 1"
-                ).fetchone()
-                if row:
-                    self._activities_cache = json.loads(row[0])
-                    return self._activities_cache
+        """Return the activity-summary list (newest first), from cache when
+        possible. force_refresh pulls anything new from Strava first."""
+        if force_refresh:
+            self.sync_activities()
+        if self._activities_cache is None:
+            self._activities_cache = self._load_activities()
+        return self._activities_cache
 
+    def _load_activities(self):
+        with sqlite3.connect(self.db_name) as conn:
+            rows = conn.execute(
+                "SELECT data FROM activities ORDER BY start_date DESC"
+            ).fetchall()
+            if not rows and self._migrate_legacy_blob(conn):
+                rows = conn.execute(
+                    "SELECT data FROM activities ORDER BY start_date DESC"
+                ).fetchall()
+        return [json.loads(r[0]) for r in rows]
+
+    def _migrate_legacy_blob(self, conn):
+        """Seed the per-row table from the old single-blob cache, once."""
+        try:
+            row = conn.execute(
+                "SELECT data FROM activities_list ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return False
+        if not row:
+            return False
+        acts = json.loads(row[0])
+        self._upsert_activities(conn, acts)
+        conn.commit()
+        return bool(acts)
+
+    @staticmethod
+    def _upsert_activities(conn, acts):
+        conn.executemany(
+            "INSERT OR REPLACE INTO activities (id, sport_type, start_date, data) "
+            "VALUES (?, ?, ?, ?)",
+            [(a["id"],
+              a.get("sport_type") or a.get("type"),
+              a.get("start_date") or a.get("start_date_local"),
+              json.dumps(a))
+             for a in acts if a.get("id")],
+        )
+
+    def _fetch_activity_pages(self, after=None):
         all_acts = []
         page = 1
         while True:
-            batch = self._get("/athlete/activities", {"per_page": 100, "page": page})
+            params = {"per_page": 100, "page": page}
+            if after:
+                params["after"] = after
+            batch = self._get("/athlete/activities", params)
             if not batch:
                 break
             all_acts.extend(batch)
             if len(batch) < 100:
                 break
             page += 1
-
-        if all_acts:
-            with sqlite3.connect(self.db_name) as conn:
-                conn.execute("DELETE FROM activities_list")
-                conn.execute(
-                    "INSERT INTO activities_list (data, fetched_at) VALUES (?, ?)",
-                    (json.dumps(all_acts), int(time.time())),
-                )
-                conn.commit()
-            self._activities_cache = all_acts
         return all_acts
+
+    def sync_activities(self, full=False):
+        """Fetch activities newer than what we already have and upsert them.
+        Returns the count of genuinely new (previously unseen) activities."""
+        after = None
+        if not full:
+            with sqlite3.connect(self.db_name) as conn:
+                row = conn.execute("SELECT MAX(start_date) FROM activities").fetchone()
+            if row and row[0]:
+                ep = self._to_epoch(row[0])
+                if ep:
+                    # Re-scan the last day; INSERT OR REPLACE makes this idempotent
+                    # and guards against any local/UTC boundary drift.
+                    after = ep - 86400
+
+        fetched = self._fetch_activity_pages(after=after)
+        new_count = 0
+        if fetched:
+            with sqlite3.connect(self.db_name) as conn:
+                existing = {r[0] for r in conn.execute("SELECT id FROM activities")}
+                new_count = sum(1 for a in fetched if a.get("id") not in existing)
+                self._upsert_activities(conn, fetched)
+                conn.commit()
+            self._activities_cache = None
+        return new_count
+
+    @staticmethod
+    def _to_epoch(iso):
+        try:
+            return int(datetime.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S")
+                       .replace(tzinfo=timezone.utc).timestamp())
+        except Exception:
+            return None
 
     # ── Activity Detail ──────────────────────────────────────────────────────
 
@@ -927,6 +1000,147 @@ class StravaAPI:
 
         return stats, charts
 
+    # ── Personal Records ─────────────────────────────────────────────────────
+
+    def personal_records(self, activities):
+        """Compute personal-best records from the cached activity summaries.
+
+        Returns (records, chart_html). Everything here is derived purely from the
+        summary list already in the DB — no extra Strava calls.
+        """
+        if not activities:
+            return {}, None
+
+        def sport_of(a):
+            return a.get('sport_type') or a.get('type', '') or 'Unknown'
+
+        def card(a, value_str, sub):
+            return {
+                'id': a.get('id'),
+                'name': a.get('name', 'Untitled'),
+                'sport': sport_of(a),
+                'date': a.get('start_date_local', ''),
+                'value': value_str,
+                'sub': sub,
+            }
+
+        # ── Single-activity superlatives ──
+        cards = []
+
+        longest = max(activities, key=lambda a: a.get('distance', 0) or 0)
+        if longest.get('distance'):
+            cards.append({'icon': '📏', 'title': 'Longest Activity',
+                          **card(longest, f"{fmt_km(longest['distance'])} km",
+                                 sport_icon(sport_of(longest)) + ' ' + sport_of(longest))})
+
+        longest_t = max(activities, key=lambda a: a.get('moving_time', 0) or 0)
+        if longest_t.get('moving_time'):
+            cards.append({'icon': '⏱', 'title': 'Longest Duration',
+                          **card(longest_t, fmt_duration(longest_t['moving_time']),
+                                 sport_icon(sport_of(longest_t)) + ' ' + sport_of(longest_t))})
+
+        climb = max(activities, key=lambda a: a.get('total_elevation_gain', 0) or 0)
+        if climb.get('total_elevation_gain'):
+            cards.append({'icon': '⛰', 'title': 'Biggest Climb',
+                          **card(climb, f"{climb['total_elevation_gain']:.0f} m",
+                                 sport_icon(sport_of(climb)) + ' ' + sport_of(climb))})
+
+        # Plausibility ceiling (m/s) to reject GPS-glitch outliers. Foot sports
+        # cap near a sprinter's top speed; wheeled sports allow fast descents.
+        def speed_ok(a, speed):
+            s = sport_of(a).lower()
+            if 'run' in s or 'walk' in s or 'hike' in s:
+                return speed <= 12.0
+            if 'ride' in s or 'cycl' in s or 'bike' in s:
+                return speed <= 30.0
+            return True
+
+        speed_pool = [a for a in activities
+                      if (a.get('max_speed', 0) or 0) > 0
+                      and speed_ok(a, a['max_speed'])]
+        fastest = max(speed_pool, key=lambda a: a['max_speed']) if speed_pool else {}
+        if fastest.get('max_speed'):
+            cards.append({'icon': '⚡', 'title': 'Top Speed',
+                          **card(fastest, f"{fastest['max_speed'] * 3.6:.1f} km/h",
+                                 sport_icon(sport_of(fastest)) + ' ' + sport_of(fastest))})
+
+        # ── Aggregate volume records (sum of distance over a period) ──
+        def period_record(key_fn, icon, title, label_fn):
+            buckets = defaultdict(float)
+            for a in activities:
+                d = a.get('start_date_local', '')[:10]
+                if not d:
+                    continue
+                try:
+                    dt = datetime.strptime(d, '%Y-%m-%d').date()
+                except Exception:
+                    continue
+                buckets[key_fn(dt)] += a.get('distance', 0) or 0
+            if not buckets:
+                return
+            best_key, best_val = max(buckets.items(), key=lambda kv: kv[1])
+            if best_val <= 0:
+                return
+            cards.append({'icon': icon, 'title': title, 'id': None,
+                          'name': label_fn(best_key), 'sport': '',
+                          'date': '', 'value': f"{best_val / 1000:.1f} km", 'sub': ''})
+
+        period_record(lambda dt: dt, '☀️', 'Biggest Day',
+                      lambda k: k.strftime('%b %-d, %Y'))
+        period_record(lambda dt: dt.isocalendar()[:2], '🗓', 'Biggest Week',
+                      lambda k: f"Week {k[1]}, {k[0]}")
+        period_record(lambda dt: (dt.year, dt.month), '📆', 'Biggest Month',
+                      lambda k: date(k[0], k[1], 1).strftime('%B %Y'))
+
+        # ── Run PRs by distance class (best average pace at or above threshold) ──
+        run_distances = []
+        classes = [('5K', 5000), ('10K', 10000),
+                   ('Half Marathon', 21097), ('Marathon', 42195)]
+        # Cap average run pace at a plausible ~2:30/km (6.67 m/s); anything faster
+        # over a full activity is a bad GPS/distance reading, not a PR.
+        runs = [a for a in activities
+                if 'run' in sport_of(a).lower()
+                and 0 < (a.get('average_speed', 0) or 0) <= 6.67]
+        for label, threshold in classes:
+            pool = [a for a in runs if (a.get('distance', 0) or 0) >= threshold]
+            if not pool:
+                continue
+            top = max(pool, key=lambda a: a.get('average_speed', 0))
+            run_distances.append({
+                'label': label,
+                'pace': fmt_pace(top['average_speed']) + ' /km',
+                'distance': f"{fmt_km(top['distance'])} km",
+                'name': top.get('name', 'Untitled'),
+                'id': top.get('id'),
+                'date': top.get('start_date_local', ''),
+            })
+
+        records = {'cards': cards, 'run_distances': run_distances}
+
+        # ── Chart: top 5 longest activities ──
+        top5 = sorted(activities, key=lambda a: a.get('distance', 0) or 0,
+                      reverse=True)[:5]
+        top5 = [a for a in top5 if a.get('distance')]
+        chart = None
+        if top5:
+            top5 = list(reversed(top5))  # longest at top of horizontal bar
+            labels = [(a.get('name') or 'Untitled')[:28] for a in top5]
+            vals = [round((a.get('distance', 0) or 0) / 1000, 1) for a in top5]
+            fig = go.Figure(go.Bar(
+                x=vals, y=labels, orientation='h',
+                marker_color="#6366f1",
+                text=[f"{v} km" for v in vals], textposition="auto",
+                hovertemplate="%{y}<br>%{x} km<extra></extra>",
+            ))
+            fig.update_layout(title="Top 5 Longest Activities",
+                              xaxis_title="km",
+                              **{**self._DARK, "height": 300})
+            chart = pio.to_html(fig, full_html=False, include_plotlyjs=False,
+                                div_id="chart-pr-longest",
+                                config={"displayModeBar": False})
+
+        return records, chart
+
     # ── Route Heatmap ────────────────────────────────────────────────────────
 
     def chart_heatmap(self, activities):
@@ -1379,8 +1593,16 @@ def calendar_view():
 
 @app.route('/sync')
 def sync():
-    acts = strava.get_activities(force_refresh=True)
-    flash(f"Synced {len(acts)} activities from Strava.")
+    full = request.args.get('full') == '1'
+    new_count = strava.sync_activities(full=full)
+    if full:
+        flash(f"Full re-sync complete — {new_count} new "
+              f"{'activity' if new_count == 1 else 'activities'} added.")
+    elif new_count:
+        flash(f"Synced {new_count} new "
+              f"{'activity' if new_count == 1 else 'activities'} from Strava.")
+    else:
+        flash("Already up to date — no new activities.")
     return redirect(url_for('index'))
 
 
@@ -1456,6 +1678,18 @@ def dashboard():
         totals=totals,
         metric=metric,
         unit=unit,
+    )
+
+
+@app.route('/records')
+def records():
+    activities = strava.get_activities()
+    recs, chart = strava.personal_records(activities)
+    return render_template(
+        'records.html',
+        records=recs,
+        chart=chart,
+        total=len(activities),
     )
 
 

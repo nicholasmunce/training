@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Records — Levitate{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <span class="page-title">Personal Records</span>
+  <span class="text-secondary" style="font-size:.8rem">From {{ total }} activities</span>
+</div>
+
+{% if not records or not records.cards %}
+<div class="text-center py-5 text-secondary">
+  <p>No data yet. <a href="/sync" class="text-warning">Sync from Strava</a> first.</p>
+</div>
+{% else %}
+
+{# ── Hero record cards ── #}
+<div class="row g-2 mb-4">
+  {% for c in records.cards %}
+  <div class="col-6 col-md-4 col-xl-3">
+    {% if c.id %}<a href="/activity/{{ c.id }}" class="text-reset">{% endif %}
+    <div class="stat-card h-100">
+      <div class="label">{{ c.icon }} {{ c.title }}</div>
+      <div class="value">{{ c.value }}</div>
+      <div class="text-secondary text-truncate mt-2" style="font-size:.8rem" title="{{ c.name }}">
+        {{ c.name }}
+      </div>
+      {% if c.date %}
+      <div class="text-secondary" style="font-size:.72rem">{{ c.date | fdate }}</div>
+      {% elif c.sub %}
+      <div class="text-secondary" style="font-size:.72rem">{{ c.sub }}</div>
+      {% endif %}
+    </div>
+    {% if c.id %}</a>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Run PRs by distance ── #}
+{% if records.run_distances %}
+<div class="section-header mt-5">Best Run Pace by Distance</div>
+<div class="chart-card mb-4">
+  <table class="table mb-0">
+    <thead>
+      <tr>
+        <th>Distance</th>
+        <th>Avg Pace</th>
+        <th>Activity</th>
+        <th class="text-end">Logged</th>
+        <th class="text-end">Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in records.run_distances %}
+      <tr onclick="window.location='/activity/{{ r.id }}'">
+        <td class="fw-semibold text-white">{{ r.label }}</td>
+        <td class="fw-semibold" style="color:var(--accent)">{{ r.pace }}</td>
+        <td class="text-truncate" style="max-width:280px">{{ r.name }}</td>
+        <td class="text-end text-secondary">{{ r.distance }}</td>
+        <td class="text-end text-secondary">{{ r.date | fdate }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-secondary" style="font-size:.72rem">
+  Fastest average pace among runs that covered at least the stated distance.
+</p>
+{% endif %}
+
+{# ── Chart ── #}
+{% if chart %}
+<div class="section-header mt-5">Distance Leaders</div>
+<div class="chart-card mb-4">{{ chart | safe }}</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}
